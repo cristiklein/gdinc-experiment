@@ -1,0 +1,34 @@
+<domain type='xen'>
+  <name>vm-{{ item.vmid }}</name>
+  <memory unit='KiB'>8388608</memory>
+  <currentMemory unit='KiB'>8388608</currentMemory>
+  <vcpu placement='static' current='4'>32</vcpu>
+  <bootloader>/usr/lib/xen-4.6/bin/pygrub</bootloader>
+  <os>
+    <type arch='x86_64' machine='xenpv'>linux</type>
+  </os>
+  <clock offset='utc' adjustment='reset'/>
+  <on_poweroff>destroy</on_poweroff>
+  <on_reboot>restart</on_reboot>
+  <on_crash>restart</on_crash>
+  <devices>
+    <disk type='file' device='disk'>
+      <driver name='qemu' type='qcow2'/>
+      <source file='/root/vm-{{ item.vmid }}-root.qcow2'/>
+      <target dev='xvda' bus='xen'/>
+    </disk>
+    <disk type='file' device='cdrom'>
+      <driver name='qemu' type='raw'/>
+      <source file='/root/configdrive.iso'/>
+      <target dev='hdc' bus='xen'/>
+      <readonly/>
+    </disk>
+    <interface type='bridge'>
+      <mac address='00:16:3e:cc:00:{{ item.vmid }}'/>
+      <source bridge='virbr0'/>
+    </interface>
+    <console type='pty'>
+      <target type='xen' port='0'/>
+    </console>
+  </devices>
+</domain>

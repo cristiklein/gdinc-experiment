@@ -1,0 +1,33 @@
+#cloud-config
+
+ssh_authorized_keys:
+  - ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAmJNTPvYo4jPr9zTlGfbqEbFE2fJn/QxLOY/mLB0ANvlTi2/5JvCqwI1jNusjQTQmEnp5wj3XlKR2Yh0W2IrKUStej2xMqWb85r5jzMKzm//DuyRpm8s1dKkmst3g7fPd3DYyy3ZkmCaY6rBBAkluZMR0uCUdHnbtIjCUlbilKCyXUD6ZptIUl7yIj0a+trxLOPIAXynupqE8ufrjXQqPPClD/xgV49HidMT0rrwIQEr502/afFJIKxzE9rBcBwzJ0rzEKZg8G70npXBpzsdaqvsQPLlNatUSvA8g2ed7YzmrbnoMV2XMu6jvztEDTn8UQNV9/VWTnO1iJyhI62d77w== cristi@hades
+
+coreos:
+  units:
+    - name: docker-tcp.socket
+      command: start
+      enable: true
+      content: |
+        [Unit]
+        Description=Docker Socket for the API
+
+        [Socket]
+        ListenStream=2375
+        BindIPv6Only=both
+        Service=docker.service
+
+        [Install]
+        WantedBy=sockets.target
+    - name: update-engine.service
+      mask: true
+    - name: locksmithd.service
+      mask: true
+
+write_files:
+  - path: /etc/udev/rules.d/cpu-online.rules
+    permissions: "0644"
+    owner: "root"
+    content: |
+      SUBSYSTEM=="cpu",ACTION=="add",RUN+="/bin/sh -c '[ ! -e /sys$devpath/online ] || echo 1 > /sys$devpath/online'"
+      SUBSYSTEM=="cpu",ACTION=="add",RUN+="/bin/sh -c 'cat /sys/fs/cgroup/cpuset/cpuset.cpus > /sys/fs/cgroup/cpuset/docker/cpuset.cpus; for c in /sys/fs/cgroup/cpuset/docker/*/cpuset.cpus; do cat /sys/fs/cgroup/cpuset/cpuset.cpus > $c; done'"

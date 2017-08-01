@@ -1,0 +1,12 @@
+- name: Ensure important packages are present
+  apt: name={{item}} state=installed
+  with_items:
+       - curl
+       - mc
+       - pv
+
+- name: Update motd
+  copy:
+    src: files/motd
+    dest: /etc/motd
+  

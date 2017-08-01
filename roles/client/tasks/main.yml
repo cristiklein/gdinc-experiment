@@ -1,0 +1,24 @@
+- name: Install apt requirements
+  apt: name={{item}} state=installed
+  with_items:
+    - docker.io
+    - python-docker
+    - python-ipaddress
+  async: 1000
+  poll: 1
+
+- name: Pull httpmon Docker image
+  docker_image:
+    name: cklein/httpmon
+  async: 1000
+  poll: 1
+
+- name: Push workload generator
+  synchronize:
+    src: files/
+    dest: gd_implementation/
+    archive: yes
+    owner: no
+    perms: no
+  tags:
+    - update-experiment

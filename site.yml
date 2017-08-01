@@ -1,0 +1,20 @@
+- name: configure common
+  hosts: all
+  remote_user: root
+  gather_facts: False
+  roles:
+    - common
+
+- name: configure hypervisors
+  hosts: hypervisors
+  remote_user: root
+  gather_facts: False
+  roles:
+    - hypervisor
+
+- name: configure clients
+  hosts: clients
+  remote_user: root
+  gather_facts: False
+  roles:
+    - client

@@ -1,0 +1,26 @@
+<network>
+  <name>default</name>
+  <uuid>0cba4152-e289-4f2c-88ca-58a3461b870f</uuid>
+  <forward mode='nat'>
+    <nat>
+      <port start='1024' end='65535'/>
+    </nat>
+  </forward>
+  <bridge name='virbr0' stp='off' delay='0'/>
+  <mac address='52:54:00:5b:36:46'/>
+  <ip address='192.168.122.1' netmask='255.255.255.0'>
+    <dhcp>
+      <range start='192.168.122.2' end='192.168.122.254'/>
+      <host mac='00:16:3e:cc:00:00' name='vm00' ip='192.168.122.100'/>
+      <host mac='00:16:3e:cc:00:01' name='vm01' ip='192.168.122.101'/>
+      <host mac='00:16:3e:cc:00:02' name='vm02' ip='192.168.122.102'/>
+      <host mac='00:16:3e:cc:00:03' name='vm03' ip='192.168.122.103'/>
+      <host mac='00:16:3e:cc:00:04' name='vm04' ip='192.168.122.104'/>
+      <host mac='00:16:3e:cc:00:05' name='vm05' ip='192.168.122.105'/>
+      <host mac='00:16:3e:cc:00:06' name='vm06' ip='192.168.122.106'/>
+      <host mac='00:16:3e:cc:00:07' name='vm07' ip='192.168.122.107'/>
+      <host mac='00:16:3e:cc:00:08' name='vm08' ip='192.168.122.108'/>
+      <host mac='00:16:3e:cc:00:09' name='vm09' ip='192.168.122.109'/>
+    </dhcp>
+  </ip>
+</network>

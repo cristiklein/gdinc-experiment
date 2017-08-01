@@ -1,0 +1,169 @@
+- name: Configure correct Xen toolstack
+  blockinfile:
+    dest: /etc/default/xen
+    block: TOOLSTACK=xl
+
+- name: Configure hosts
+  blockinfile:
+    dest: /etc/hosts
+    block: "{{ lookup('template', 'hosts.j2') }}"
+
+- name: Install prerequites packages
+  apt: name={{item}} state=installed
+  with_items:
+    - genisoimage
+    - git
+    - python-libvirt
+    - python-lxml
+
+- name: Configure default virtual network
+  virt_net:
+    name: default
+    state: latest
+    xml: '{{ lookup("template", "virbr0.xml") }}'
+    autostart: yes
+  register: virt_net
+
+# https://coreos.com/os/docs/latest/booting-with-libvirt.html
+- name: Download CoreOS image
+  shell: wget https://stable.release.core-os.net/amd64-usr/current/coreos_production_qemu_image.img.bz2 -O - | bzcat > /root/coreos_production_qemu_image.img
+  args:
+    creates: /root/coreos_production_qemu_image.img
+  register: vm_base_image
+
+- name: Create QCOW2 root images
+  command: qemu-img create -f qcow2 -b /root/coreos_production_qemu_image.img /root/vm-{{ item.vmid }}-root.qcow2 20G
+  args:
+    creates: "/root/vm-{{ item.vmid }}-root.qcow2"
+  with_items: "{{ vm_configs }}"
+  register: vm_root_image
+
+# https://coreos.com/os/docs/1367.5.0/config-drive.html
+- name: Copy cloud-config
+  template:
+    src: cloud-config.j2
+    dest: /root/cloud-config
+  register: vm_cloud_config
+
+- name: Preparing config-drive
+  shell: |
+    mkdir -p /tmp/new-drive/openstack/latest
+    cp /root/cloud-config /tmp/new-drive/openstack/latest/user_data
+    mkisofs -R -V config-2 -o /root/configdrive.iso /tmp/new-drive
+    rm -r /tmp/new-drive
+  when: vm_cloud_config.changed
+  register: vm_cloud_drive
+
+- name: Define VMs
+  virt:
+    name: vm-{{ item.vmid }}
+    command: define
+    xml: "{{ lookup('template', 'coreos.xml.j2') }}"
+    uri: xen:///
+  with_items: "{{ vm_configs }}"
+
+- name: Start VMs
+  virt:
+    name: vm-{{ item.vmid }}
+    state: running
+    uri: xen:///
+  with_items: "{{ vm_configs }}"
+
+- name: Start docker registry
+  docker_container:
+    name: registry
+    image: registry:2
+    state: started
+    published_ports:
+      - 192.168.122.1:5000:5000
+      - 127.0.0.1:5000:5000
+
+- name: Checking out, building and pushing images
+  shell: |
+    # Ansible git module is sllllooooowww
+    set -e
+    GIT_REPO=https://cristiklein@bitbucket.org/gdincentives/brownout-rubis.git
+    GIT_BRANCH={{ item }}
+    DEST=/root/{{ item }}
+    DOCKER_IMAGE_NAME=localhost:5000/{{ item }}
+
+    if [ -d $DEST ]; then
+      cd $DEST
+      git reset --hard
+      if ! git pull | grep -q "Already up-to-date."; then
+        CHANGED=yes
+      fi
+    else
+      mkdir -p $DEST
+      cd $DEST
+      git clone --depth=1 $GIT_REPO
+      CHANGED=yes
+    fi
+
+    if [ -n "$CHANGED" ]; then
+      docker build -t $DOCKER_IMAGE_NAME .
+      docker push $DOCKER_IMAGE_NAME
+      exit 111
+    fi
+  register: checkout_result
+  changed_when: "checkout_result.rc == 111"
+  failed_when: "checkout_result.rc != 111 and checkout_result.rc != 0"
+  with_items:
+    - rubis-web-tier
+    - rubis-db-tier
+  tags:
+    - update-containers
+
+- name: Start registry proxy on VM
+  docker_container:
+    name: registry
+    docker_host: tcp://vm-{{ item.vmid }}:2375
+    image: bobrik/socat
+    network_mode: host
+    command: ["TCP-LISTEN:5000,bind=127.0.0.1,fork", "TCP:192.168.122.1:5000"]
+  with_items: "{{ vm_configs }}"
+
+- name: Start rubis-db-tier
+  docker_container:
+    name: rubis-db-tier-0
+    docker_host: tcp://vm-{{ item.vmid }}:2375
+    image: localhost:5000/rubis-db-tier
+    pull: yes
+    volumes:
+      - /home/core/brownout-rubis-data:/var/lib/mysql
+  with_items: "{{ vm_configs }}"
+
+- name: Start rubis-web-tier
+  docker_container:
+    name: rubis-web-tier-0
+    docker_host: tcp://vm-{{ item.vmid }}:2375
+    image: localhost:5000/rubis-web-tier
+    pull: yes
+    links:
+      - rubis-db-tier-0:mysql
+    published_ports:
+      - 80:80
+      - 2713:2713/udp
+  with_items: "{{ vm_configs }}"
+  tags:
+    - update-containers
+
+- name: Force caching of data folder
+  docker_container:
+    name: vmtouch-rubis-db-data-0
+    docker_host: tcp://vm-{{ item.vmid }}:2375
+    image: cklein/vmtouch
+    pull: yes
+    privileged: yes
+    restart: yes
+    force_kill: yes
+    volumes:
+      - /home/core/brownout-rubis-data:/data
+  with_items: "{{ vm_configs }}"
+
+- name: Install resource-manager
+  copy:
+    src: ../../resource-manager.py
+    dest: /root/resource-manager.py
+  tags:
+    - update-experiment
