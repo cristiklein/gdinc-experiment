@@ -30,7 +30,7 @@ cat >> .ssh/authorized_keys   # paste the public key on your control machine
 Usage
 =====
 
-* `./deploy.sh`: deploys the whole experiment. You need to run this script at least once and every time you update the experiment.
+* `./deploy.sh`: deploys the whole experiment. You need to run this script at least once and every time you update the experiment. **NOTICE: The first time you run this script, the RUBiS database is imported from a SQL dump. This may take as much as 30 minutes.**
 * `./run-experiment.sh`: runs the experiment and gathers results in a TAR file on the control machine.
 * `./experiment-to-csvs.py TARFILE`: converts TARFILE into a CSV that can be used for plotting.
 
